@@ -28,10 +28,10 @@ export default function Authenticated({
 
                             <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                                 <NavLink
-                                    href={route('dashboard')}
-                                    active={route().current('dashboard')}
+                                    href={route('products.index')}
+                                    active={route().current('products.*')}
                                 >
-                                    Dashboard
+                                    Products
                                 </NavLink>
                             </div>
                         </div>
@@ -132,10 +132,10 @@ export default function Authenticated({
                 >
                     <div className="pt-2 pb-3 space-y-1">
                         <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
+                            href={route('products.index')}
+                            active={route().current('products.*')}
                         >
-                            Dashboard
+                            Products
                         </ResponsiveNavLink>
                     </div>
 
