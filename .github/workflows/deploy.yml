@@ -1,0 +1,166 @@
+name: "new Smart Tender deployment"
+on:
+  push:
+    branches: [branch-main]
+
+jobs:
+  Build-and-Deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 500
+
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: ${{ secrets.DB_DATABASE }}
+          MYSQL_USER: ${{ secrets.DB_USER }}
+          MYSQL_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          # extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql, bcmath, soap, zip, curl
+          # coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+      # - name: Check FTP Server Access
+      #   run: |
+      #     curl --ftp-ssl --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" "ftp://${{ secrets.FTP_SERVER }}" || (echo "FTP server not accessible" && exit 1)
+
+      - name: Copy .env file
+        run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+
+      - name: Update .env file
+        run: |
+          sed -i "s/DB_HOST=.*/DB_HOST=127.0.0.1/" .env
+          sed -i "s/DB_PORT=.*/DB_PORT=3306/" .env
+          sed -i "s/DB_DATABASE=.*/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
+          sed -i "s/DB_USERNAME=.*/DB_USERNAME=${{ secrets.DB_USER }}/" .env
+          sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+          sed -i "s/APP_ENV=.*/APP_ENV=production/" .env
+          sed -i "s/APP_DEBUG=.*/APP_DEBUG=true/" .env
+
+      - name: Install Composer Dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+        # tar -czvf vendor.tar.gz vendor/
+
+      # - name: Install Laravel Pint
+      #   run: composer require laravel/pint --dev
+
+      # - name: Run Laravel Pint
+      #   run: vendor/bin/pint
+
+      - name: Generate APP_KEY if missing
+        run: |
+          if ! grep -q "^APP_KEY=" .env || [ -z "$(grep '^APP_KEY=' .env | cut -d '=' -f 2)" ]; then
+            php artisan key:generate
+          fi
+
+      - name: Install NPM Dependencies
+        run: npm install
+
+      - name: Build Assets
+        run: |
+          npm run build
+          if [ $? -ne 0 ]; then
+            echo "Build failed"
+            exit 1
+          fi
+
+      - name: Set Directory Permissions
+        run: chmod -R 777 storage bootstrap/cache
+
+      - name: Run Database Migrations
+        run: php artisan migrate --force --verbose
+
+      - name: Run Database Seeder
+        run: php artisan db:seed --force
+
+      - name: Create Storage Link
+        run: php artisan storage:link
+
+      - name: Deploy Build Files
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: "./public/build/"
+          server-dir: "/public/build/"
+          timeout: 7200000
+          # max-retries: 3
+          # retry-delay: 5000
+          exclude: |
+            **/.git*
+            **/.git*/**
+
+      # - name: Deploy JS Files
+      #   uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      #   with:
+      #     server: ${{ secrets.FTP_SERVER }}
+      #     username: ${{ secrets.FTP_USERNAME }}
+      #     password: ${{ secrets.FTP_PASSWORD }}
+      #     local-dir: "./resources/js/"
+      #     server-dir: "/resources/js/"
+      #     timeout: 7200000
+      #     # max-retries: 3
+      #     # retry-delay: 5000
+      #     exclude: |
+      #       **/.git*
+      #       **/.git*/**
+      #       **/node_modules/**
+
+      - name: Deploy Main Application
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: "./"
+          server-dir: "/"
+          timeout: 18000000
+          # max-retries: 3
+          # retry-delay: 5000
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
+            **/public/build/**
+            **/resources/js/**
+            **/resources/data/**
+            **/vendor/**
+            **/config/l5-swagger.php/**
+            **/storage/api-docs/**
+
+      - name: Run Artisan Commands Over SSH (Post-Deploy)
+        uses: appleboy/ssh-action@v0.1.10
+        continue-on-error: true
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            php artisan down
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan storage:link
+            php artisan db:seed
+            php artisan up
