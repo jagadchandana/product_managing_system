@@ -9,6 +9,21 @@ use Firebase\JWT\JWT;
 
 class AuthController extends Controller
 {
+    /**
+     * @OA\Post(
+     *     path="/api/auth/login",
+     *     summary="Obtain JWT token",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\MediaType(
+     *             mediaType="application/json",
+     *             @OA\Schema(@OA\Property(property="email", type="string"), @OA\Property(property="password", type="string"))
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="OK"),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
+     */
     public function login(Request $request)
     {
         $data = $request->validate([
@@ -28,10 +43,11 @@ class AuthController extends Controller
             return response()->json(['message' => 'JWT secret not configured'], 500);
         }
 
+
         $payload = [
             'sub' => $user->id,
             'iat' => time(),
-            'exp' => time() + 60 * 60, // 1 hour
+            'exp' => time() + 60 * 60,
         ];
 
         $token = JWT::encode($payload, $secret, 'HS256');

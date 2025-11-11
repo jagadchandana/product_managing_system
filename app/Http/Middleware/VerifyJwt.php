@@ -15,7 +15,7 @@ class VerifyJwt
     {
         $header = $request->header('Authorization', '') ?: $request->bearerToken();
 
-        if (! $header) {
+        if (!$header) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -23,7 +23,7 @@ class VerifyJwt
 
         $secret = env('JWT_SECRET');
 
-        if (! $secret) {
+        if (!$secret) {
             return response()->json(['message' => 'JWT secret not configured'], 500);
         }
 
@@ -35,13 +35,13 @@ class VerifyJwt
 
         $sub = $payload->sub ?? $payload->user_id ?? null;
 
-        if (! $sub) {
+        if (!$sub) {
             return response()->json(['message' => 'Invalid token payload'], 401);
         }
 
         $user = User::find($sub);
 
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'User not found'], 401);
         }
 

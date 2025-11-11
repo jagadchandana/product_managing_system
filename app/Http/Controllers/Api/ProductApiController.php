@@ -15,6 +15,22 @@ use Illuminate\Http\Request;
 
 class ProductApiController extends Controller
 {
+    /**
+     * @OA\Get(
+     *     path="/api/products",
+     *     tags={"Products"},
+     *     summary="List products",
+     *     @OA\Parameter(
+     *         name="search",
+     *         in="query",
+     *         description="Filter by product name",
+     *         @OA\Schema(type="string")
+     *     ),
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="OK"),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
+     */
     public function index(Request $request)
     {
         $search = $request->query('search');
@@ -27,23 +43,6 @@ class ProductApiController extends Controller
 
         $products = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
 
-        /**
-         * @OA\Get(
-         *     path="/api/products",
-         *     tags={"Products"},
-         *     summary="List products",
-         *     @OA\Parameter(
-         *         name="search",
-         *         in="query",
-         *         description="Filter by product name",
-         *         @OA\Schema(type="string")
-         *     ),
-         *     security={{"bearerAuth":{}}},
-         *     @OA\Response(response=200, description="OK"),
-         *     @OA\Response(response=401, description="Unauthorized")
-         * )
-         */
-
         return response()->json([
             'data' => $products->items(),
             'meta' => [
@@ -55,6 +54,23 @@ class ProductApiController extends Controller
         ], 200);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/products/{id}",
+     *     tags={"Products"},
+     *     summary="Get product by id",
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="OK"),
+     *     @OA\Response(response=404, description="Not Found"),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
+     */
     public function show($id)
     {
         $product = Product::find($id);
@@ -62,24 +78,6 @@ class ProductApiController extends Controller
         if (! $product) {
             return response()->json(['message' => 'Product not found'], 404);
         }
-
-        /**
-         * @OA\Get(
-         *     path="/api/products/{id}",
-         *     tags={"Products"},
-         *     summary="Get product by id",
-         *     @OA\Parameter(
-         *         name="id",
-         *         in="path",
-         *         required=true,
-         *         @OA\Schema(type="integer")
-         *     ),
-         *     security={{"bearerAuth":{}}},
-         *     @OA\Response(response=200, description="OK"),
-         *     @OA\Response(response=404, description="Not Found"),
-         *     @OA\Response(response=401, description="Unauthorized")
-         * )
-         */
 
         return response()->json(['data' => $product], 200);
     }
